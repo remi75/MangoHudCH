@@ -68,6 +68,8 @@ extern "C" {
    OVERLAY_PARAM_CUSTOM(offset_y)                    \
    OVERLAY_PARAM_CUSTOM(crosshair_color)             \
    OVERLAY_PARAM_CUSTOM(background_alpha)            \
+   OVERLAY_PARAM_CUSTOM(io_read)                     \
+   OVERLAY_PARAM_CUSTOM(io_write)                    \
    OVERLAY_PARAM_CUSTOM(help)
 
 enum overlay_param_position {
@@ -97,6 +99,7 @@ struct overlay_params {
    bool help;
    bool no_display;
    bool full;
+   bool io_read, io_write;
    unsigned width;
    unsigned height;
    unsigned offset_x;
