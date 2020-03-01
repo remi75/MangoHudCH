@@ -141,6 +141,8 @@ parse_unsigned(const char *str)
 #define parse_vsync(s) parse_unsigned(s)
 #define parse_offset_x(s) parse_unsigned(s)
 #define parse_offset_y(s) parse_unsigned(s)
+#define parse_io_read(s) parse_unsigned(s)
+#define parse_io_write(s) parse_unsigned(s)
 
 #define parse_crosshair_color(s) parse_color(s)
 
