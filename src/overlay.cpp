@@ -64,7 +64,6 @@ int hudFirstRow, hudSecondRow;
 string engineName, engineVersion;
 struct amdGpu amdgpu;
 int64_t frameStart, frameEnd, targetFrameTime = 0, frameOverhead = 0, sleepTime = 0;
-static hud_update hud_updates {};
 
 /* Mapped from VkInstace/VkPhysicalDevice */
 struct instance_data {
@@ -915,18 +914,18 @@ void check_keybinds(struct overlay_params& params){
    }
 }
 
-void update_hud_info(struct swapchain_stats& sw_stats, struct overlay_params& params, struct hud_update& hud_updates, std::string gpu){
+void update_hud_info(struct swapchain_stats& sw_stats, struct overlay_params& params, std::string gpu){
    uint32_t f_idx = sw_stats.n_frames % ARRAY_SIZE(sw_stats.frames_stats);
    uint64_t now = os_time_get(); /* us */
 
-   double elapsed = (double)(now - hud_updates.last_fps_update); /* us */
-   fps = 1000000.0f * hud_updates.n_frames_since_update / elapsed;
+   double elapsed = (double)(now - sw_stats.last_fps_update); /* us */
+   fps = 1000000.0f * sw_stats.n_frames_since_update / elapsed;
 
-   if (hud_updates.last_present_time) {
+   if (sw_stats.last_present_time) {
         sw_stats.frames_stats[f_idx].stats[OVERLAY_PARAM_ENABLED_frame_timing] =
-            now - hud_updates.last_present_time;
+            now - sw_stats.last_present_time;
    }
-      if (hud_updates.last_fps_update) {
+      if (sw_stats.last_fps_update) {
       if (elapsed >= params.fps_sampling_period) {
             cpuStats.UpdateCPUData();
             sw_stats.total_cpu = cpuStats.GetCPUDataTotal().percent;
@@ -952,20 +951,20 @@ void update_hud_info(struct swapchain_stats& sw_stats, struct overlay_params& pa
             time << std::put_time(std::localtime(&t), params.time_format.c_str());
             sw_stats.time = time.str();
 
-         hud_updates.n_frames_since_update = 0;
-         hud_updates.last_fps_update = now;
+         sw_stats.n_frames_since_update = 0;
+         sw_stats.last_fps_update = now;
 
       }
    } else {
-      hud_updates.last_fps_update = now;
+      sw_stats.last_fps_update = now;
    }
 
    // memset(&device_data->frame_stats, 0, sizeof(device_data->frame_stats));
    // memset(&data->frame_stats, 0, sizeof(device_data->frame_stats));
    
-   hud_updates.last_present_time = now;
+   sw_stats.last_present_time = now;
    sw_stats.n_frames++;
-   hud_updates.n_frames_since_update++;
+   sw_stats.n_frames_since_update++;
 }
 
 static void snapshot_swapchain_frame(struct swapchain_data *data)
@@ -973,7 +972,7 @@ static void snapshot_swapchain_frame(struct swapchain_data *data)
    struct device_data *device_data = data->device;
    struct instance_data *instance_data = device_data->instance;
    string deviceName = device_data->properties.deviceName;
-   update_hud_info(data->sw_stats, instance_data->params, hud_updates, deviceName);
+   update_hud_info(data->sw_stats, instance_data->params, deviceName);
    check_keybinds(instance_data->params);
 
    // not currently used

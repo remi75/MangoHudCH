@@ -37,7 +37,6 @@ struct state {
 static ImVec2 window_size;
 static overlay_params params {};
 static swapchain_stats sw_stats {};
-static hud_update hud_updates {};
 static state *current_state;
 static bool inited = false;
 std::unordered_map<void*, state> g_imgui_states;
@@ -207,7 +206,7 @@ EXPORT_C_(void) glXSwapBuffers(void* dpy, void* drawable) {
     gl.Load();
     std::string deviceName = (char*)glGetString(GL_RENDERER);
     check_keybinds(params);
-    update_hud_info(sw_stats, params, hud_updates, deviceName);
+    update_hud_info(sw_stats, params, deviceName);
     imgui_render();
     gl.glXSwapBuffers(dpy, drawable);
 }
