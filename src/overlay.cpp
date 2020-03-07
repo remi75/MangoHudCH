@@ -881,37 +881,14 @@ void init_system_info(){
         duration = 0;
 }
 
-static void snapshot_swapchain_frame(struct swapchain_data *data)
-{
-   struct device_data *device_data = data->device;
-   struct instance_data *instance_data = device_data->instance;
-   uint32_t f_idx = data->sw_stats.n_frames % ARRAY_SIZE(data->sw_stats.frames_stats);
+void check_keybinds(struct overlay_params& params){
    uint64_t now = os_time_get(); /* us */
-
-   if (instance_data->params.control >= 0) {
-      control_client_check(device_data);
-      process_control_socket(instance_data);
-   }
-
-   double elapsed = (double)(now - data->last_fps_update); /* us */
    elapsedF2 = (double)(now - last_f2_press);
    elapsedF12 = (double)(now - last_f12_press);
    elapsedRefreshConfig = (double)(now - refresh_config_press);
-   fps = 1000000.0f * data->n_frames_since_update / elapsed;
-
-   if (data->last_present_time) {
-      data->frame_stats.stats[OVERLAY_PARAM_ENABLED_frame_timing] =
-         now - data->last_present_time;
-   }
-
-   memset(&data->sw_stats.frames_stats[f_idx], 0, sizeof(data->sw_stats.frames_stats[f_idx]));
-   for (int s = 0; s < OVERLAY_PARAM_ENABLED_MAX; s++) {
-      data->sw_stats.frames_stats[f_idx].stats[s] += device_data->frame_stats.stats[s] + data->frame_stats.stats[s];
-      data->accumulated_stats.stats[s] += device_data->frame_stats.stats[s] + data->frame_stats.stats[s];
-   }
-
-   if (elapsedF2 >= 500000 && mangohud_output_env){
-     if (key_is_pressed(instance_data->params.toggle_logging)){
+  
+  if (elapsedF2 >= 500000 && mangohud_output_env){
+     if (key_is_pressed(params.toggle_logging)){
        last_f2_press = now;
        log_start = now;
        loggingOn = !loggingOn;
@@ -923,18 +900,52 @@ static void snapshot_swapchain_frame(struct swapchain_data *data)
    }
 
    if (elapsedF12 >= 500000){
-      if (key_is_pressed(instance_data->params.toggle_hud)){
-         instance_data->params.no_display = !instance_data->params.no_display;
+      if (key_is_pressed(params.toggle_hud)){
          last_f12_press = now;
+         params.no_display = !params.no_display;
       }
    }
 
    if (elapsedRefreshConfig >= 500000){
-      if (key_is_pressed(instance_data->params.refresh_config)){
-         parse_overlay_config(&instance_data->params, getenv("MANGOHUD_CONFIG"));
+      if (key_is_pressed(params.refresh_config)){
+         parse_overlay_config(&params, getenv("MANGOHUD_CONFIG"));
          refresh_config_press = now;
       }
    }
+}
+
+
+static void snapshot_swapchain_frame(struct swapchain_data *data)
+{
+   struct device_data *device_data = data->device;
+   struct instance_data *instance_data = device_data->instance;
+   update_hud_info(data->sw_stats, instance_data->params);
+   check_keybinds(instance_data->params);
+   
+   uint32_t f_idx = data->sw_stats.n_frames % ARRAY_SIZE(data->sw_stats.frames_stats);
+   uint64_t now = os_time_get(); /* us */
+
+   // not currently used
+   // if (instance_data->params.control >= 0) {
+   //    control_client_check(device_data);
+   //    process_control_socket(instance_data);
+   // }
+
+   double elapsed = (double)(now - data->last_fps_update); /* us */
+
+   fps = 1000000.0f * data->n_frames_since_update / elapsed;
+
+   if (data->last_present_time) {
+        data->sw_stats.frames_stats[f_idx].stats[OVERLAY_PARAM_ENABLED_frame_timing] =
+            now - data->last_present_time;
+   }
+   
+   // not currently used
+   // memset(&data->sw_stats.frames_stats[f_idx], 0, sizeof(data->sw_stats.frames_stats[f_idx]));
+   // for (int s = 0; s < OVERLAY_PARAM_ENABLED_MAX; s++) {
+      // data->sw_stats.frames_stats[f_idx].stats[s] += device_data->frame_stats.stats[s] + data->frame_stats.stats[s];
+      // data->accumulated_stats.stats[s] += device_data->frame_stats.stats[s] + data->frame_stats.stats[s];
+   // }
 
    if (data->last_fps_update) {
       if (elapsed >= instance_data->params.fps_sampling_period) {
