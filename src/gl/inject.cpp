@@ -13,11 +13,6 @@
 #include "imgui_impl_opengl3.h"
 #include "font_default.h"
 #include "overlay.h"
-#include "gpu.h"
-#include "cpu.h"
-#include "mesa/util/os_time.h"
-#include "memory.h"
-#include "iostats.h"
 #include "mesa/util/macros.h"
 
 #include <chrono>
