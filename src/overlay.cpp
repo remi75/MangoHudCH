@@ -849,6 +849,38 @@ void init_gpu_stats(uint32_t& vendorID, overlay_params& params)
    }
 }
 
+void init_system_info(){
+      ram =  exec("cat /proc/meminfo | grep 'MemTotal' | awk '{print $2}'");
+      trim(ram);
+      cpu =  exec("cat /proc/cpuinfo | grep 'model name' | tail -n1 | sed 's/^.*: //' | sed 's/([^)]*)/()/g' | tr -d '(/)'");
+      trim(cpu);
+      kernel = exec("uname -r");
+      trim(kernel);
+      os = exec("cat /etc/*-release | grep 'PRETTY_NAME' | cut -d '=' -f 2-");
+      os.erase(remove(os.begin(), os.end(), '\"' ), os.end());
+      trim(os);
+      gpu = exec("lspci | grep VGA | head -n1 | awk -vRS=']' -vFS='[' '{print $2}' | sed '/^$/d' | tail -n1");
+      trim(gpu);
+      driver = exec("glxinfo | grep 'OpenGL version' | sed 's/^.*: //' | cut -d' ' --output-delimiter=$'\n' -f1- | grep -v '(' | grep -v ')' | tr '\n' ' ' | cut -c 1-");
+      trim(driver);
+      //driver = itox(device_data->properties.driverVersion);
+
+#ifndef NDEBUG
+      std::cout << "Ram:" << ram << "\n"
+                << "Cpu:" << cpu << "\n"
+                << "Kernel:" << kernel << "\n"
+                << "Os:" << os << "\n"
+                << "Gpu:" << gpu << "\n"
+                << "Driver:" << driver << std::endl;
+#endif
+
+      if (!log_period_env || !try_stoi(log_period, log_period_env))
+        log_period = 100;
+
+      if (log_duration_env && !try_stoi(duration, log_duration_env))
+        duration = 0;
+}
+
 static void snapshot_swapchain_frame(struct swapchain_data *data)
 {
    struct device_data *device_data = data->device;
@@ -902,43 +934,6 @@ static void snapshot_swapchain_frame(struct swapchain_data *data)
          parse_overlay_config(&instance_data->params, getenv("MANGOHUD_CONFIG"));
          refresh_config_press = now;
       }
-   }
-
-   if (!sysInfoFetched) {
-      ram =  exec("cat /proc/meminfo | grep 'MemTotal' | awk '{print $2}'");
-      trim(ram);
-      cpu =  exec("cat /proc/cpuinfo | grep 'model name' | tail -n1 | sed 's/^.*: //' | sed 's/([^)]*)/()/g' | tr -d '(/)'");
-      trim(cpu);
-      kernel = exec("uname -r");
-      trim(kernel);
-      os = exec("cat /etc/*-release | grep 'PRETTY_NAME' | cut -d '=' -f 2-");
-      os.erase(remove(os.begin(), os.end(), '\"' ), os.end());
-      trim(os);
-      gpu = exec("lspci | grep VGA | head -n1 | awk -vRS=']' -vFS='[' '{print $2}' | sed '/^$/d' | tail -n1");
-      trim(gpu);
-      driver = exec("glxinfo | grep 'OpenGL version' | sed 's/^.*: //' | cut -d' ' --output-delimiter=$'\n' -f1- | grep -v '(' | grep -v ')' | tr '\n' ' ' | cut -c 1-");
-      trim(driver);
-      //driver = itox(device_data->properties.driverVersion);
-
-#ifndef NDEBUG
-      std::cout << "Ram:" << ram << "\n"
-                << "Cpu:" << cpu << "\n"
-                << "Kernel:" << kernel << "\n"
-                << "Os:" << os << "\n"
-                << "Gpu:" << gpu << "\n"
-                << "Driver:" << driver << std::endl;
-#endif
-
-      if (!log_period_env || !try_stoi(log_period, log_period_env))
-        log_period = 100;
-
-      if (log_period == 0)
-         out.open("/tmp/mango", ios::out | ios::app);
-
-      if (log_duration_env && !try_stoi(duration, log_duration_env))
-        duration = 0;
-
-      sysInfoFetched = true;
    }
 
    if (data->last_fps_update) {
