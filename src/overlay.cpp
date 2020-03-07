@@ -915,27 +915,6 @@ static void snapshot_swapchain_frame(struct swapchain_data *data)
       if (log_duration_env && !try_stoi(duration, log_duration_env))
         duration = 0;
 
-      string name, path;
-      string hwmon = "/sys/class/hwmon/";
-      auto dirs = ls(hwmon.c_str());
-      for (auto& dir : dirs)
-      {
-         path = hwmon + dir;
-         name = read_line(path + "/name");
-#ifndef NDEBUG
-         std::cerr << "hwmon: sensor name: " << name << std::endl;
-#endif
-         if (name == "coretemp" || name == "k10temp" || name == "zenpower"){
-            path += "/temp1_input";
-            break;
-         }
-      }
-      if (!file_exists(path)) {
-         cerr << "MANGOHUD: Could not find cpu temp sensor location" << endl;
-      } else {
-         cpuTempFile = fopen(path.c_str(), "r");
-      }
-
       sysInfoFetched = true;
    }
 
@@ -958,8 +937,6 @@ static void snapshot_swapchain_frame(struct swapchain_data *data)
           elapsed >= instance_data->params.fps_sampling_period) {
             cpuStats.UpdateCPUData();
             cpuLoadLog = cpuStats.GetCPUDataTotal().percent;
-            if (cpuTempFile)
-              pthread_create(&cpuInfoThread, NULL, &cpuInfo, NULL);
             
             if (instance_data->params.enabled[OVERLAY_PARAM_ENABLED_gpu_stats]) {
               // get gpu usage
