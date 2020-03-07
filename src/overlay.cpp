@@ -941,23 +941,8 @@ static void snapshot_swapchain_frame(struct swapchain_data *data)
       sysInfoFetched = true;
    }
 
-   /* If capture has been enabled but it hasn't started yet, it means we are on
-    * the first snapshot after it has been enabled. At this point we want to
-    * use the stats captured so far to update the display, but we don't want
-    * this data to cause noise to the stats that we want to capture from now
-    * on.
-    *
-    * capture_begin == true will trigger an update of the fps on display, and a
-    * flush of the data, but no stats will be written to the output file. This
-    * way, we will have only stats from after the capture has been enabled
-    * written to the output_file.
-    */
-   const bool capture_begin =
-      instance_data->capture_enabled && !instance_data->capture_started;
-
    if (data->last_fps_update) {
-      if (capture_begin ||
-          elapsed >= instance_data->params.fps_sampling_period) {
+      if (elapsed >= instance_data->params.fps_sampling_period) {
             cpuStats.UpdateCPUData();
             data->sw_stats.total_cpu = cpuStats.GetCPUDataTotal().percent;
             
@@ -986,48 +971,10 @@ static void snapshot_swapchain_frame(struct swapchain_data *data)
             time << std::put_time(std::localtime(&t), instance_data->params.time_format.c_str());
             data->sw_stats.time = time.str();
 
-         if (instance_data->capture_started) {
-            if (!instance_data->first_line_printed) {
-               bool first_column = true;
-
-               instance_data->first_line_printed = true;
-
-#define OVERLAY_PARAM_BOOL(name) \
-               if (instance_data->params.enabled[OVERLAY_PARAM_ENABLED_##name]) { \
-                  fprintf(instance_data->params.output_file, \
-                          "%s%s%s", first_column ? "" : ", ", #name, \
-                          param_unit(OVERLAY_PARAM_ENABLED_##name)); \
-                  first_column = false; \
-               }
-#define OVERLAY_PARAM_CUSTOM(name)
-               OVERLAY_PARAMS
-#undef OVERLAY_PARAM_BOOL
-#undef OVERLAY_PARAM_CUSTOM
-               fprintf(instance_data->params.output_file, "\n");
-            }
-
-            for (int s = 0; s < OVERLAY_PARAM_ENABLED_MAX; s++) {
-               if (!instance_data->params.enabled[s])
-                  continue;
-               if (s == OVERLAY_PARAM_ENABLED_fps) {
-                  fprintf(instance_data->params.output_file,
-                          "%s%.2f", s == 0 ? "" : ", ", data->sw_stats.fps);
-               } else {
-                  fprintf(instance_data->params.output_file,
-                          "%s%" PRIu64, s == 0 ? "" : ", ",
-                          data->accumulated_stats.stats[s]);
-               }
-            }
-            fprintf(instance_data->params.output_file, "\n");
-            fflush(instance_data->params.output_file);
-         }
-
          memset(&data->accumulated_stats, 0, sizeof(data->accumulated_stats));
          data->n_frames_since_update = 0;
          data->last_fps_update = now;
 
-         if (capture_begin)
-            instance_data->capture_started = true;
       }
    } else {
       data->last_fps_update = now;
