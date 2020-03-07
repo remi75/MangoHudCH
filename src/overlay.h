@@ -32,3 +32,4 @@ struct hud_update {
 void position_layer(struct overlay_params& params, ImVec2 window_size, unsigned width, unsigned height);
 void render_imgui(swapchain_stats& data, struct overlay_params& params, ImVec2& window_size, unsigned width, unsigned height);
 void update_hud_info(struct swapchain_stats& sw_stats, struct overlay_params& params, struct hud_update& hud_updates, std::string gpu);
+void check_keybinds(struct overlay_params& params);

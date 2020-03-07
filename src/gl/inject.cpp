@@ -211,6 +211,7 @@ EXPORT_C_(bool) glXMakeCurrent(void* dpy, void* drawable, void* ctx) {
 EXPORT_C_(void) glXSwapBuffers(void* dpy, void* drawable) {
     gl.Load();
     std::string deviceName = (char*)glGetString(GL_RENDERER);
+    check_keybinds(params);
     update_hud_info(sw_stats, params, hud_updates, deviceName);
     imgui_render();
     gl.glXSwapBuffers(dpy, drawable);
