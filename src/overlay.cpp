@@ -64,6 +64,7 @@ int hudFirstRow, hudSecondRow;
 string engineName, engineVersion;
 struct amdGpu amdgpu;
 int64_t frameStart, frameEnd, targetFrameTime = 0, frameOverhead = 0, sleepTime = 0;
+static hud_update hud_updates {};
 
 /* Mapped from VkInstace/VkPhysicalDevice */
 struct instance_data {
@@ -914,16 +915,66 @@ void check_keybinds(struct overlay_params& params){
    }
 }
 
+void update_hud_info(struct swapchain_stats& sw_stats, struct overlay_params& params, struct hud_update& hud_updates, std::string gpu){
+   uint32_t f_idx = sw_stats.n_frames % ARRAY_SIZE(sw_stats.frames_stats);
+   uint64_t now = os_time_get(); /* us */
+
+   double elapsed = (double)(now - hud_updates.last_fps_update); /* us */
+   fps = 1000000.0f * hud_updates.n_frames_since_update / elapsed;
+
+   if (hud_updates.last_present_time) {
+        sw_stats.frames_stats[f_idx].stats[OVERLAY_PARAM_ENABLED_frame_timing] =
+            now - hud_updates.last_present_time;
+   }
+      if (hud_updates.last_fps_update) {
+      if (elapsed >= params.fps_sampling_period) {
+            cpuStats.UpdateCPUData();
+            sw_stats.total_cpu = cpuStats.GetCPUDataTotal().percent;
+            
+            if (params.enabled[OVERLAY_PARAM_ENABLED_gpu_stats]) {
+                  if (gpu.find("Radeon") != std::string::npos
+                     || gpu.find("AMD") != std::string::npos){
+                     pthread_create(&gpuThread, NULL, &getAmdGpuUsage, NULL);
+                  } else if (gpu.find("Intel") == std::string::npos) {
+                     pthread_create(&gpuThread, NULL, &getNvidiaGpuInfo, NULL);
+                  }
+            }
+
+            // get ram usage/max
+            pthread_create(&memoryThread, NULL, &update_meminfo, NULL);
+            pthread_create(&ioThread, NULL, &getIoStats, &sw_stats.io);
+
+            gpuLoadLog = gpu_info.load;
+            sw_stats.fps = fps;
+
+            std::time_t t = std::time(nullptr);
+            std::stringstream time;
+            time << std::put_time(std::localtime(&t), params.time_format.c_str());
+            sw_stats.time = time.str();
+
+         hud_updates.n_frames_since_update = 0;
+         hud_updates.last_fps_update = now;
+
+      }
+   } else {
+      hud_updates.last_fps_update = now;
+   }
+
+   // memset(&device_data->frame_stats, 0, sizeof(device_data->frame_stats));
+   // memset(&data->frame_stats, 0, sizeof(device_data->frame_stats));
+   
+   hud_updates.last_present_time = now;
+   sw_stats.n_frames++;
+   hud_updates.n_frames_since_update++;
+}
 
 static void snapshot_swapchain_frame(struct swapchain_data *data)
 {
    struct device_data *device_data = data->device;
    struct instance_data *instance_data = device_data->instance;
-   update_hud_info(data->sw_stats, instance_data->params);
+   string deviceName = device_data->properties.deviceName;
+   update_hud_info(data->sw_stats, instance_data->params, hud_updates, deviceName);
    check_keybinds(instance_data->params);
-   
-   uint32_t f_idx = data->sw_stats.n_frames % ARRAY_SIZE(data->sw_stats.frames_stats);
-   uint64_t now = os_time_get(); /* us */
 
    // not currently used
    // if (instance_data->params.control >= 0) {
@@ -931,14 +982,6 @@ static void snapshot_swapchain_frame(struct swapchain_data *data)
    //    process_control_socket(instance_data);
    // }
 
-   double elapsed = (double)(now - data->last_fps_update); /* us */
-
-   fps = 1000000.0f * data->n_frames_since_update / elapsed;
-
-   if (data->last_present_time) {
-        data->sw_stats.frames_stats[f_idx].stats[OVERLAY_PARAM_ENABLED_frame_timing] =
-            now - data->last_present_time;
-   }
    
    // not currently used
    // memset(&data->sw_stats.frames_stats[f_idx], 0, sizeof(data->sw_stats.frames_stats[f_idx]));
@@ -947,51 +990,6 @@ static void snapshot_swapchain_frame(struct swapchain_data *data)
       // data->accumulated_stats.stats[s] += device_data->frame_stats.stats[s] + data->frame_stats.stats[s];
    // }
 
-   if (data->last_fps_update) {
-      if (elapsed >= instance_data->params.fps_sampling_period) {
-            cpuStats.UpdateCPUData();
-            data->sw_stats.total_cpu = cpuStats.GetCPUDataTotal().percent;
-            
-            if (instance_data->params.enabled[OVERLAY_PARAM_ENABLED_gpu_stats]) {
-              // get gpu usage
-              if (device_data->properties.vendorID == 0x10de)
-                 pthread_create(&gpuThread, NULL, &getNvidiaGpuInfo, NULL);
-
-              if (device_data->properties.vendorID == 0x1002)
-                pthread_create(&gpuThread, NULL, &getAmdGpuUsage, NULL);
-            }
-
-            // get ram usage/max
-            pthread_create(&memoryThread, NULL, &update_meminfo, NULL);
-            pthread_create(&ioThread, NULL, &getIoStats, &data->sw_stats.io);
-
-            // update variables for logging
-            // cpuLoadLog = cpuArray[0].value;
-            gpuLoadLog = gpu_info.load;
-
-            data->frametimeDisplay = data->frametime;
-            data->sw_stats.fps = fps;
-
-            std::time_t t = std::time(nullptr);
-            std::stringstream time;
-            time << std::put_time(std::localtime(&t), instance_data->params.time_format.c_str());
-            data->sw_stats.time = time.str();
-
-         memset(&data->accumulated_stats, 0, sizeof(data->accumulated_stats));
-         data->n_frames_since_update = 0;
-         data->last_fps_update = now;
-
-      }
-   } else {
-      data->last_fps_update = now;
-   }
-
-   memset(&device_data->frame_stats, 0, sizeof(device_data->frame_stats));
-   memset(&data->frame_stats, 0, sizeof(device_data->frame_stats));
-
-   data->last_present_time = now;
-   data->sw_stats.n_frames++;
-   data->n_frames_since_update++;
 }
 
 static float get_time_stat(void *_data, int _idx)
@@ -2548,6 +2546,7 @@ static VkResult overlay_CreateDevice(
    device_map_queues(device_data, pCreateInfo);
 
    init_gpu_stats(device_data->properties.vendorID, instance_data->params);
+   init_system_info();
 
    return result;
 }

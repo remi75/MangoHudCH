@@ -42,6 +42,7 @@ struct state {
 static ImVec2 window_size;
 static overlay_params params {};
 static swapchain_stats sw_stats {};
+static hud_update hud_updates {};
 static state *current_state;
 static bool inited = false;
 std::unordered_map<void*, state> g_imgui_states;
@@ -209,41 +210,8 @@ EXPORT_C_(bool) glXMakeCurrent(void* dpy, void* drawable, void* ctx) {
 
 EXPORT_C_(void) glXSwapBuffers(void* dpy, void* drawable) {
     gl.Load();
-    uint64_t now = os_time_get(); /* us */
-    double elapsed = (double)(now - last_fps_update); /* us */
-    uint32_t f_idx = sw_stats.n_frames % ARRAY_SIZE(sw_stats.frames_stats);
-
-    if (elapsed > 500000){
-        sw_stats.fps = 1000000.0f * n_frames_since_update / elapsed;
-
-        if (params.enabled[OVERLAY_PARAM_ENABLED_gpu_stats]) {
-            std::string gpu = (char*)glGetString(GL_RENDERER);
-            if (gpu.find("Radeon") != std::string::npos
-                || gpu.find("AMD") != std::string::npos){
-                pthread_create(&gpuThread, NULL, &getAmdGpuUsage, NULL);
-            } else if (gpu.find("Intel") == std::string::npos) {
-                pthread_create(&gpuThread, NULL, &getNvidiaGpuInfo, NULL);
-            }
-        }
-
-        cpuStats.UpdateCPUData();
-        sw_stats.total_cpu = cpuStats.GetCPUDataTotal().percent;
-        pthread_create(&memoryThread, NULL, &update_meminfo, NULL);
-        pthread_create(&ioThread, NULL, &getIoStats, &sw_stats.io);
-        last_fps_update = now;
-        n_frames_since_update = 0;
-    }
-
-    //memset(&sw_stats.frames_stats[f_idx], 0, sizeof(sw_stats.frames_stats[f_idx]));
-    if (last_present_time) {
-        sw_stats.frames_stats[f_idx].stats[OVERLAY_PARAM_ENABLED_frame_timing] =
-            now - last_present_time;
-    }
-    last_present_time = now;
-
-    n_frames_since_update++;
-    sw_stats.n_frames++;
-
+    std::string deviceName = (char*)glGetString(GL_RENDERER);
+    update_hud_info(sw_stats, params, hud_updates, deviceName);
     imgui_render();
     gl.glXSwapBuffers(dpy, drawable);
 }
