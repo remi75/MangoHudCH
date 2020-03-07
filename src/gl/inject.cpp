@@ -29,6 +29,7 @@ struct state {
     ImFont* font1 = nullptr;
 };
 
+static ImVec2 window_size;
 static overlay_params params {};
 static swapchain_stats sw_stats {};
 static state *current_state;
@@ -41,6 +42,7 @@ void imgui_init()
         return;
     inited = true;
     parse_overlay_config(&params, getenv("MANGOHUD_CONFIG"));
+    window_size = ImVec2(params.width, params.height);
 }
 
 void imgui_create(void *ctx)
@@ -142,8 +144,8 @@ void imgui_render()
     ImGui_ImplOpenGL3_NewFrame();
     ImGui::NewFrame();
 
-    position_layer(params, ImGui::GetIO().DisplaySize, vp[2], vp[3]);
-    render_imgui(sw_stats, params, ImGui::GetIO().DisplaySize, vp[2], vp[3]);
+    position_layer(params, window_size, vp[2], vp[3]);
+    render_imgui(sw_stats, params, window_size, vp[2], vp[3]);
     ImGui::PopStyleVar(2);
 
     ImGui::Render();
