@@ -59,7 +59,6 @@ void *getAmdGpuUsage(void *){
             value = 0;
         amdgpu.memoryUsed = float(value) / (1024 * 1024 * 1024);
         gpu_info.memoryUsed = amdgpu.memoryUsed;
-        printf("%f\n", gpu_info.memoryUsed);
     }
 
     if (amdGpuCoreClockFile) {

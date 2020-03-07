@@ -4,6 +4,7 @@
 #include "overlay_params.h"
 #include "iostats.h"
 
+extern std::string engineName;
 struct frame_stat {
    uint64_t stats[OVERLAY_PARAM_ENABLED_MAX];
 };
@@ -19,6 +20,7 @@ struct swapchain_stats {
    std::string time;
    double fps;
    struct iostats io;
+   int total_cpu;
 };
 
 void position_layer(struct overlay_params& params, ImVec2 window_size, unsigned width, unsigned height);

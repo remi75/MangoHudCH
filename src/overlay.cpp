@@ -959,7 +959,7 @@ static void snapshot_swapchain_frame(struct swapchain_data *data)
       if (capture_begin ||
           elapsed >= instance_data->params.fps_sampling_period) {
             cpuStats.UpdateCPUData();
-            cpuLoadLog = cpuStats.GetCPUDataTotal().percent;
+            data->sw_stats.total_cpu = cpuStats.GetCPUDataTotal().percent;
             
             if (instance_data->params.enabled[OVERLAY_PARAM_ENABLED_gpu_stats]) {
               // get gpu usage
@@ -1140,7 +1140,7 @@ void render_imgui(swapchain_stats& data, struct overlay_params& params, ImVec2& 
          ImGui::TableNextRow();
          ImGui::TextColored(ImVec4(0.180, 0.592, 0.796, 1.00f), "CPU");
          ImGui::TableNextCell();
-         right_aligned_text(char_width * 4, "%d", cpuLoadLog);
+         right_aligned_text(char_width * 4, "%d", data.total_cpu);
          ImGui::SameLine(0, 1.0f);
          ImGui::Text("%%");
          // ImGui::SameLine(150);
