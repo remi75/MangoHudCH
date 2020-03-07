@@ -756,20 +756,17 @@ static void process_control_socket(struct instance_data *instance_data)
    }
 }
 
-void init_gpu_stats(struct device_data *device_data)
+void init_gpu_stats(uint32_t& vendorID, overlay_params& params)
 {
-   struct instance_data *instance_data = device_data->instance;
-
    // NVIDIA or Intel but maybe has Optimus
-   if (device_data->properties.vendorID == 0x8086
-      || device_data->properties.vendorID == 0x10de) {
-      if ((instance_data->params.enabled[OVERLAY_PARAM_ENABLED_gpu_stats] = checkNvidia())) {
-         device_data->properties.vendorID = 0x10de;
+   if (vendorID == 0x8086
+      || vendorID == 0x10de) {
+      if ((params.enabled[OVERLAY_PARAM_ENABLED_gpu_stats] = checkNvidia())) {
+         vendorID = 0x10de;
       }
    }
 
-   if (device_data->properties.vendorID == 0x8086
-       || device_data->properties.vendorID == 0x1002
+   if (vendorID == 0x8086 || vendorID == 0x1002
        || gpu.find("Radeon") != std::string::npos
        || gpu.find("AMD") != std::string::npos) {
       string path;
@@ -812,8 +809,8 @@ void init_gpu_stats(struct device_data *device_data)
                if (!amdTempFile)
                   amdTempFile = fopen(path.c_str(), "r");
 
-               instance_data->params.enabled[OVERLAY_PARAM_ENABLED_gpu_stats] = true;
-               device_data->properties.vendorID = 0x1002;
+               params.enabled[OVERLAY_PARAM_ENABLED_gpu_stats] = true;
+               vendorID = 0x1002;
                break;
             }
          }
@@ -821,7 +818,7 @@ void init_gpu_stats(struct device_data *device_data)
 
       // don't bother then
       if (!amdGpuFile && !amdTempFile && !amdGpuVramTotalFile && !amdGpuVramUsedFile) {
-         instance_data->params.enabled[OVERLAY_PARAM_ENABLED_gpu_stats] = false;
+         params.enabled[OVERLAY_PARAM_ENABLED_gpu_stats] = false;
       }
    }
 }
@@ -2594,7 +2591,7 @@ static VkResult overlay_CreateDevice(
 
    device_map_queues(device_data, pCreateInfo);
 
-   init_gpu_stats(device_data);
+   init_gpu_stats(device_data->properties.vendorID, instance_data->params);
 
    return result;
 }
