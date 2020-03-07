@@ -132,6 +132,7 @@ void imgui_set_context(void *ctx)
     } else {
         imgui_create(ctx);
     }
+    sw_stats.font1 = current_state->font1;
 }
 
 void imgui_render()
