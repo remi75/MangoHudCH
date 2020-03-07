@@ -36,7 +36,7 @@
 
 #include "imgui.h"
 
-#include "overlay_params.h"
+#include "overlay.h"
 #include "font_default.h"
 
 // #include "util/debug.h"
@@ -54,7 +54,6 @@
 #include "logging.h"
 #include "keybinds.h"
 #include "cpu.h"
-#include "iostats.h"
 #include "loaders/loader_nvml.h"
 
 bool open = false;
@@ -84,10 +83,6 @@ struct instance_data {
    bool capture_started;
 };
 
-struct frame_stat {
-   uint64_t stats[OVERLAY_PARAM_ENABLED_MAX];
-};
-
 /* Mapped from VkDevice */
 struct queue_data;
 struct device_data {
@@ -107,7 +102,6 @@ struct device_data {
 
    /* For a single frame */
    struct frame_stat frame_stats;
-   bool gpu_stats = false;
 };
 
 /* Mapped from VkCommandBuffer */
@@ -183,7 +177,6 @@ struct swapchain_data {
    std::list<overlay_draw *> draws; /* List of struct overlay_draw */
 
    ImFont* font = nullptr;
-   ImFont* font1 = nullptr;
    bool font_uploaded;
    VkImage font_image;
    VkImageView font_image_view;
@@ -196,30 +189,22 @@ struct swapchain_data {
    ImVec2 window_size;
 
    /**/
-   uint64_t n_frames;
    uint64_t last_present_time;
 
    unsigned n_frames_since_update;
    uint64_t last_fps_update;
-   double fps;
    double frametime;
    double frametimeDisplay;
    const char* cpuString;
    const char* gpuString;
-   std::string time;
 
-   enum overlay_param_enabled stat_selector;
-   double time_dividor;
-   struct frame_stat stats_min, stats_max;
-   struct frame_stat frames_stats[200];
+   struct swapchain_stats sw_stats;
 
    /* Over a single frame */
    struct frame_stat frame_stats;
 
    /* Over fps_sampling_period */
    struct frame_stat accumulated_stats;
-
-   struct iostats io;
 };
 
 static const VkQueryPipelineStatisticFlags overlay_query_flags =
@@ -778,7 +763,7 @@ void init_gpu_stats(struct device_data *device_data)
    // NVIDIA or Intel but maybe has Optimus
    if (device_data->properties.vendorID == 0x8086
       || device_data->properties.vendorID == 0x10de) {
-      if ((device_data->gpu_stats = checkNvidia())) {
+      if ((instance_data->params.enabled[OVERLAY_PARAM_ENABLED_gpu_stats] = checkNvidia())) {
          device_data->properties.vendorID = 0x10de;
       }
    }
@@ -827,7 +812,7 @@ void init_gpu_stats(struct device_data *device_data)
                if (!amdTempFile)
                   amdTempFile = fopen(path.c_str(), "r");
 
-               device_data->gpu_stats = true;
+               instance_data->params.enabled[OVERLAY_PARAM_ENABLED_gpu_stats] = true;
                device_data->properties.vendorID = 0x1002;
                break;
             }
@@ -836,7 +821,7 @@ void init_gpu_stats(struct device_data *device_data)
 
       // don't bother then
       if (!amdGpuFile && !amdTempFile && !amdGpuVramTotalFile && !amdGpuVramUsedFile) {
-         device_data->gpu_stats = false;
+         instance_data->params.enabled[OVERLAY_PARAM_ENABLED_gpu_stats] = false;
       }
    }
 }
@@ -845,7 +830,7 @@ static void snapshot_swapchain_frame(struct swapchain_data *data)
 {
    struct device_data *device_data = data->device;
    struct instance_data *instance_data = device_data->instance;
-   uint32_t f_idx = data->n_frames % ARRAY_SIZE(data->frames_stats);
+   uint32_t f_idx = data->sw_stats.n_frames % ARRAY_SIZE(data->sw_stats.frames_stats);
    uint64_t now = os_time_get(); /* us */
 
    if (instance_data->params.control >= 0) {
@@ -864,9 +849,9 @@ static void snapshot_swapchain_frame(struct swapchain_data *data)
          now - data->last_present_time;
    }
 
-   memset(&data->frames_stats[f_idx], 0, sizeof(data->frames_stats[f_idx]));
+   memset(&data->sw_stats.frames_stats[f_idx], 0, sizeof(data->sw_stats.frames_stats[f_idx]));
    for (int s = 0; s < OVERLAY_PARAM_ENABLED_MAX; s++) {
-      data->frames_stats[f_idx].stats[s] += device_data->frame_stats.stats[s] + data->frame_stats.stats[s];
+      data->sw_stats.frames_stats[f_idx].stats[s] += device_data->frame_stats.stats[s] + data->frame_stats.stats[s];
       data->accumulated_stats.stats[s] += device_data->frame_stats.stats[s] + data->frame_stats.stats[s];
    }
 
@@ -976,7 +961,7 @@ static void snapshot_swapchain_frame(struct swapchain_data *data)
             if (cpuTempFile)
               pthread_create(&cpuInfoThread, NULL, &cpuInfo, NULL);
             
-            if (device_data->gpu_stats) {
+            if (instance_data->params.enabled[OVERLAY_PARAM_ENABLED_gpu_stats]) {
               // get gpu usage
               if (device_data->properties.vendorID == 0x10de)
                  pthread_create(&gpuThread, NULL, &getNvidiaGpuInfo, NULL);
@@ -987,19 +972,19 @@ static void snapshot_swapchain_frame(struct swapchain_data *data)
 
             // get ram usage/max
             pthread_create(&memoryThread, NULL, &update_meminfo, NULL);
-            pthread_create(&ioThread, NULL, &getIoStats, &data->io);
+            pthread_create(&ioThread, NULL, &getIoStats, &data->sw_stats.io);
 
             // update variables for logging
             // cpuLoadLog = cpuArray[0].value;
             gpuLoadLog = gpuLoad;
 
             data->frametimeDisplay = data->frametime;
-            data->fps = fps;
+            data->sw_stats.fps = fps;
 
             std::time_t t = std::time(nullptr);
             std::stringstream time;
             time << std::put_time(std::localtime(&t), instance_data->params.time_format.c_str());
-            data->time = time.str();
+            data->sw_stats.time = time.str();
 
          if (instance_data->capture_started) {
             if (!instance_data->first_line_printed) {
@@ -1026,7 +1011,7 @@ static void snapshot_swapchain_frame(struct swapchain_data *data)
                   continue;
                if (s == OVERLAY_PARAM_ENABLED_fps) {
                   fprintf(instance_data->params.output_file,
-                          "%s%.2f", s == 0 ? "" : ", ", data->fps);
+                          "%s%.2f", s == 0 ? "" : ", ", data->sw_stats.fps);
                } else {
                   fprintf(instance_data->params.output_file,
                           "%s%" PRIu64, s == 0 ? "" : ", ",
@@ -1052,13 +1037,13 @@ static void snapshot_swapchain_frame(struct swapchain_data *data)
    memset(&data->frame_stats, 0, sizeof(device_data->frame_stats));
 
    data->last_present_time = now;
-   data->n_frames++;
+   data->sw_stats.n_frames++;
    data->n_frames_since_update++;
 }
 
 static float get_time_stat(void *_data, int _idx)
 {
-   struct swapchain_data *data = (struct swapchain_data *) _data;
+   struct swapchain_stats *data = (struct swapchain_stats *) _data;
    if ((ARRAY_SIZE(data->frames_stats) - _idx) > data->n_frames)
       return 0.0f;
    int idx = ARRAY_SIZE(data->frames_stats) +
@@ -1070,35 +1055,32 @@ static float get_time_stat(void *_data, int _idx)
    return data->frames_stats[idx].stats[data->stat_selector] / data->time_dividor;
 }
 
-static void position_layer(struct swapchain_data *data)
-
+void position_layer(struct overlay_params& params, ImVec2 window_size, unsigned width, unsigned height)
 {
-   struct device_data *device_data = data->device;
-   struct instance_data *instance_data = device_data->instance;
    float margin = 10.0f;
-   if (instance_data->params.offset_x > 0 || instance_data->params.offset_y > 0)
+   if (params.offset_x > 0 || params.offset_y > 0)
       margin = 0.0f;
 
-   ImGui::SetNextWindowBgAlpha(instance_data->params.background_alpha);
-   ImGui::SetNextWindowSize(data->window_size, ImGuiCond_Always);
+   ImGui::SetNextWindowBgAlpha(params.background_alpha);
+   ImGui::SetNextWindowSize(window_size, ImGuiCond_Always);
    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8,-3));
 
-   switch (instance_data->params.position) {
+   switch (params.position) {
    case LAYER_POSITION_TOP_LEFT:
-      ImGui::SetNextWindowPos(ImVec2(margin + instance_data->params.offset_x, margin + instance_data->params.offset_y), ImGuiCond_Always);
+      ImGui::SetNextWindowPos(ImVec2(margin + params.offset_x, margin + params.offset_y), ImGuiCond_Always);
       break;
    case LAYER_POSITION_TOP_RIGHT:
-      ImGui::SetNextWindowPos(ImVec2(data->width - data->window_size.x - margin + instance_data->params.offset_x, margin + instance_data->params.offset_y),
+      ImGui::SetNextWindowPos(ImVec2(width - window_size.x - margin + params.offset_x, margin + params.offset_y),
                               ImGuiCond_Always);
       break;
    case LAYER_POSITION_BOTTOM_LEFT:
-      ImGui::SetNextWindowPos(ImVec2(margin + instance_data->params.offset_x, data->height - data->window_size.y - margin + instance_data->params.offset_y),
+      ImGui::SetNextWindowPos(ImVec2(margin + params.offset_x, height - window_size.y - margin + params.offset_y),
                               ImGuiCond_Always);
       break;
    case LAYER_POSITION_BOTTOM_RIGHT:
-      ImGui::SetNextWindowPos(ImVec2(data->width - data->window_size.x - margin + instance_data->params.offset_x,
-                                     data->height - data->window_size.y - margin + instance_data->params.offset_y),
+      ImGui::SetNextWindowPos(ImVec2(width - window_size.x - margin + params.offset_x,
+                                     height - window_size.y - margin + params.offset_y),
                               ImGuiCond_Always);
       break;
    }
@@ -1119,25 +1101,18 @@ static void right_aligned_text(float off_x, const char *fmt, ...)
    ImGui::Text("%s", buffer);
 }
 
-static void compute_swapchain_display(struct swapchain_data *data)
+void render_imgui(swapchain_stats& data, struct overlay_params& params, ImVec2& window_size, unsigned width, unsigned height)
 {
-   struct device_data *device_data = data->device;
-   struct instance_data *instance_data = device_data->instance;
-
-   ImGui::SetCurrentContext(data->imgui_context);
-   ImGui::NewFrame();
-   position_layer(data);
-
    static float char_width = ImGui::CalcTextSize("A").x;
 
-   if (!instance_data->params.no_display){
+   if (!params.no_display){
       ImGui::Begin("Main", &open, ImGuiWindowFlags_NoDecoration);
-      ImGui::BeginTable("hud", instance_data->params.tableCols);
-      if (instance_data->params.enabled[OVERLAY_PARAM_ENABLED_time]){
+      ImGui::BeginTable("hud", params.tableCols);
+      if (params.enabled[OVERLAY_PARAM_ENABLED_time]){
          ImGui::TableNextRow();
-         ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.00f), "%s", data->time.c_str());
+         ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.00f), "%s", data.time.c_str());
       }
-      if (device_data->gpu_stats && instance_data->params.enabled[OVERLAY_PARAM_ENABLED_gpu_stats]){
+      if (params.enabled[OVERLAY_PARAM_ENABLED_gpu_stats]){
          ImGui::TableNextRow();
          ImGui::TextColored(ImVec4(0.180, 0.592, 0.384, 1.00f), "GPU");
          ImGui::TableNextCell();
@@ -1146,22 +1121,22 @@ static void compute_swapchain_display(struct swapchain_data *data)
          ImGui::Text("%%");
          // ImGui::SameLine(150);
          // ImGui::Text("%s", "%");
-         if (instance_data->params.enabled[OVERLAY_PARAM_ENABLED_gpu_temp]){
+         if (params.enabled[OVERLAY_PARAM_ENABLED_gpu_temp]){
             ImGui::TableNextCell();
             right_aligned_text(char_width * 4, "%i", gpuTemp);
             ImGui::SameLine(0, 1.0f);
             ImGui::Text("°C");
          }
-         if (instance_data->params.enabled[OVERLAY_PARAM_ENABLED_gpu_core_clock]){
+         if (params.enabled[OVERLAY_PARAM_ENABLED_gpu_core_clock]){
             ImGui::TableNextCell();
             right_aligned_text(char_width * 4, "%i", gpuCoreClock);
             ImGui::SameLine(0, 1.0f);
-            ImGui::PushFont(data->font1);
+            ImGui::PushFont(data.font1);
             ImGui::Text("MHz");
             ImGui::PopFont();
          }
       }
-      if(instance_data->params.enabled[OVERLAY_PARAM_ENABLED_cpu_stats]){
+      if(params.enabled[OVERLAY_PARAM_ENABLED_cpu_stats]){
          ImGui::TableNextRow();
          ImGui::TextColored(ImVec4(0.180, 0.592, 0.796, 1.00f), "CPU");
          ImGui::TableNextCell();
@@ -1171,7 +1146,7 @@ static void compute_swapchain_display(struct swapchain_data *data)
          // ImGui::SameLine(150);
          // ImGui::Text("%s", "%");
       
-         if (instance_data->params.enabled[OVERLAY_PARAM_ENABLED_cpu_temp]){
+         if (params.enabled[OVERLAY_PARAM_ENABLED_cpu_temp]){
             ImGui::TableNextCell();
             right_aligned_text(char_width * 4, "%i", cpuTemp);
             ImGui::SameLine(0, 1.0f);
@@ -1179,14 +1154,14 @@ static void compute_swapchain_display(struct swapchain_data *data)
          }
       }
       
-      if (instance_data->params.enabled[OVERLAY_PARAM_ENABLED_core_load]){
+      if (params.enabled[OVERLAY_PARAM_ENABLED_core_load]){
          int i = 0;
          for (const CPUData &cpuData : cpuStats.GetCPUData())
          {
             ImGui::TableNextRow();
             ImGui::TextColored(ImVec4(0.180, 0.592, 0.796, 1.00f), "CPU");
             ImGui::SameLine(0, 1.0f);
-            ImGui::PushFont(data->font1);
+            ImGui::PushFont(data.font1);
             ImGui::TextColored(ImVec4(0.180, 0.592, 0.796, 1.00f),"%i", i);
             ImGui::PopFont();
             ImGui::TableNextCell();
@@ -1196,87 +1171,87 @@ static void compute_swapchain_display(struct swapchain_data *data)
             ImGui::TableNextCell();
             right_aligned_text(char_width * 4, "%i", cpuData.mhz);
             ImGui::SameLine(0, 1.0f);
-            ImGui::PushFont(data->font1);
+            ImGui::PushFont(data.font1);
             ImGui::Text("MHz");
             ImGui::PopFont();
             i++;
          }
       }
-   if (instance_data->params.enabled[OVERLAY_PARAM_ENABLED_io_read] || instance_data->params.enabled[OVERLAY_PARAM_ENABLED_io_write]){
-         auto sampling = instance_data->params.fps_sampling_period;
+      if (params.enabled[OVERLAY_PARAM_ENABLED_io_read] || params.enabled[OVERLAY_PARAM_ENABLED_io_write]){
+         auto sampling = params.fps_sampling_period;
          ImGui::TableNextRow();
-         if (instance_data->params.enabled[OVERLAY_PARAM_ENABLED_io_read] && !instance_data->params.enabled[OVERLAY_PARAM_ENABLED_io_write])
+         if (params.enabled[OVERLAY_PARAM_ENABLED_io_read] && !params.enabled[OVERLAY_PARAM_ENABLED_io_write])
             ImGui::TextColored(ImVec4(0.643, 0.569, 0.827, 1.00f), "IO RD");
-         if (instance_data->params.enabled[OVERLAY_PARAM_ENABLED_io_write] && !instance_data->params.enabled[OVERLAY_PARAM_ENABLED_io_read])
+         if (params.enabled[OVERLAY_PARAM_ENABLED_io_write] && !params.enabled[OVERLAY_PARAM_ENABLED_io_read])
             ImGui::TextColored(ImVec4(0.643, 0.569, 0.827, 1.00f), "IO RW");
-         if (instance_data->params.enabled[OVERLAY_PARAM_ENABLED_io_read] && instance_data->params.enabled[OVERLAY_PARAM_ENABLED_io_write])
+         if (params.enabled[OVERLAY_PARAM_ENABLED_io_read] && params.enabled[OVERLAY_PARAM_ENABLED_io_write])
             ImGui::TextColored(ImVec4(0.643, 0.569, 0.827, 1.00f), "IO RD/RW");
          
-         if (instance_data->params.enabled[OVERLAY_PARAM_ENABLED_io_read]){
+         if (params.enabled[OVERLAY_PARAM_ENABLED_io_read]){
             ImGui::TableNextCell();
-            float val = data->io.diff.read * (1000000 / sampling);
+            float val = data.io.diff.read * (1000000 / sampling);
             right_aligned_text(char_width * 4, val < 100 ? "%.2f" : "%.f", val);
             ImGui::SameLine(0,1.0f);
-            ImGui::PushFont(data->font1);
+            ImGui::PushFont(data.font1);
             ImGui::Text("MiB/s");
             ImGui::PopFont();
          }
-         if (instance_data->params.enabled[OVERLAY_PARAM_ENABLED_io_write]){
+         if (params.enabled[OVERLAY_PARAM_ENABLED_io_write]){
             ImGui::TableNextCell();
-            float val = data->io.diff.write * (1000000 / sampling);
+            float val = data.io.diff.write * (1000000 / sampling);
             right_aligned_text(char_width * 4, val < 100 ? "%.2f" : "%.f", val);
             ImGui::SameLine(0,1.0f);
-            ImGui::PushFont(data->font1);
+            ImGui::PushFont(data.font1);
             ImGui::Text("MiB/s");
             ImGui::PopFont();
          }
       }
-      if (instance_data->params.enabled[OVERLAY_PARAM_ENABLED_vram]){
+      if (params.enabled[OVERLAY_PARAM_ENABLED_vram]){
          ImGui::TableNextRow();
          ImGui::TextColored(ImVec4(0.678, 0.392, 0.756, 1.00f), "VRAM");
          ImGui::TableNextCell();
          right_aligned_text(char_width * 4, "%.2f", gpuMemUsed);
          ImGui::SameLine(0,1.0f);
-         ImGui::PushFont(data->font1);
+         ImGui::PushFont(data.font1);
          ImGui::Text("GB");
          ImGui::PopFont();
-         if (instance_data->params.enabled[OVERLAY_PARAM_ENABLED_gpu_mem_clock]){
+         if (params.enabled[OVERLAY_PARAM_ENABLED_gpu_mem_clock]){
             ImGui::TableNextCell();
             right_aligned_text(char_width * 4, "%i", gpuMemClock);
             ImGui::SameLine(0, 1.0f);
-            ImGui::PushFont(data->font1);
+            ImGui::PushFont(data.font1);
             ImGui::Text("MHz");
             ImGui::PopFont();
          }
       }
-      if (instance_data->params.enabled[OVERLAY_PARAM_ENABLED_ram]){
+      if (params.enabled[OVERLAY_PARAM_ENABLED_ram]){
          ImGui::TableNextRow();
          ImGui::TextColored(ImVec4(0.760, 0.4, 0.576, 1.00f), "RAM");
          ImGui::TableNextCell();
          right_aligned_text(char_width * 4, "%.2f", memused);
          ImGui::SameLine(0,1.0f);
-         ImGui::PushFont(data->font1);
+         ImGui::PushFont(data.font1);
          ImGui::Text("GB");
          ImGui::PopFont();
       }
-      if (instance_data->params.enabled[OVERLAY_PARAM_ENABLED_fps]){
+      if (params.enabled[OVERLAY_PARAM_ENABLED_fps]){
          ImGui::TableNextRow();
          ImGui::TextColored(ImVec4(0.925, 0.411, 0.411, 1.00f), "%s", engineName.c_str());
          ImGui::TableNextCell();
-         right_aligned_text(char_width * 4, "%.0f", data->fps);
+         right_aligned_text(char_width * 4, "%.0f", data.fps);
          ImGui::SameLine(0, 1.0f);
-         ImGui::PushFont(data->font1);
+         ImGui::PushFont(data.font1);
          ImGui::Text("FPS");
          ImGui::PopFont();
          ImGui::TableNextCell();
-         right_aligned_text(char_width * 4, "%.1f", 1000 / data->fps);
+         right_aligned_text(char_width * 4, "%.1f", 1000 / data.fps);
          ImGui::SameLine(0, 1.0f);
-         ImGui::PushFont(data->font1);
+         ImGui::PushFont(data.font1);
          ImGui::Text("ms");
          ImGui::PopFont();
          if (engineName == "DXVK" || engineName == "VKD3D"){
             ImGui::TableNextRow();
-            ImGui::PushFont(data->font1);
+            ImGui::PushFont(data.font1);
             ImGui::TextColored(ImVec4(0.925, 0.411, 0.411, 1.00f), "%s", engineVersion.c_str());
             ImGui::PopFont();
          }
@@ -1291,50 +1266,50 @@ static void compute_swapchain_display(struct swapchain_data *data)
          out << fps << "," <<  cpuLoadLog << "," << gpuLoadLog << "," << (now - log_start) << endl;
       }
 
-      if (instance_data->params.enabled[OVERLAY_PARAM_ENABLED_frame_timing]){
-         ImGui::Dummy(ImVec2(0.0f, instance_data->params.font_size / 2));
-         ImGui::PushFont(data->font1);
+      if (params.enabled[OVERLAY_PARAM_ENABLED_frame_timing]){
+         ImGui::Dummy(ImVec2(0.0f, params.font_size / 2));
+         ImGui::PushFont(data.font1);
          ImGui::TextColored(ImVec4(0.925, 0.411, 0.411, 1.00f), "%s", "Frametime");
          ImGui::PopFont();
       }
 
       for (uint32_t s = 0; s < OVERLAY_PARAM_ENABLED_MAX; s++) {
-         if (!instance_data->params.enabled[s] ||
+         if (!params.enabled[s] ||
             s == OVERLAY_PARAM_ENABLED_fps ||
             s == OVERLAY_PARAM_ENABLED_frame)
             continue;
 
          char hash[40];
          snprintf(hash, sizeof(hash), "##%s", overlay_param_names[s]);
-         data->stat_selector = (enum overlay_param_enabled) s;
-         data->time_dividor = 1000.0f;
+         data.stat_selector = (enum overlay_param_enabled) s;
+         data.time_dividor = 1000.0f;
          if (s == OVERLAY_PARAM_ENABLED_gpu_timing)
-            data->time_dividor = 1000000.0f;
+            data.time_dividor = 1000000.0f;
 
          ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
          if (s == OVERLAY_PARAM_ENABLED_frame_timing) {
             double min_time = 0.0f;
             double max_time = 50.0f;
-            ImGui::PlotLines(hash, get_time_stat, data,
-                                 ARRAY_SIZE(data->frames_stats), 0,
+            ImGui::PlotLines(hash, get_time_stat, &data,
+                                 ARRAY_SIZE(data.frames_stats), 0,
                                  NULL, min_time, max_time,
-                                 ImVec2(ImGui::GetContentRegionAvailWidth() - instance_data->params.font_size * 2.2, 50));
+                                 ImVec2(ImGui::GetContentRegionAvailWidth() - params.font_size * 2.2, 50));
          }
          ImGui::PopStyleColor();
       }
-      if (instance_data->params.enabled[OVERLAY_PARAM_ENABLED_frame_timing]){
+      if (params.enabled[OVERLAY_PARAM_ENABLED_frame_timing]){
          ImGui::SameLine(0,1.0f);
-         ImGui::PushFont(data->font1);
-         ImGui::Text("%.1f ms", 1000 / data->fps);
+         ImGui::PushFont(data.font1);
+         ImGui::Text("%.1f ms", 1000 / data.fps);
          ImGui::PopFont();
       }
-      data->window_size = ImVec2(data->window_size.x, ImGui::GetCursorPosY() + 10.0f);
+      window_size = ImVec2(window_size.x, ImGui::GetCursorPosY() + 10.0f);
       ImGui::End();
    }
    if(loggingOn){
       ImGui::SetNextWindowBgAlpha(0.0);
-      ImGui::SetNextWindowSize(ImVec2(instance_data->params.font_size * 13, instance_data->params.font_size * 13), ImGuiCond_Always);
-      ImGui::SetNextWindowPos(ImVec2(data->width - instance_data->params.font_size * 13,
+      ImGui::SetNextWindowSize(ImVec2(params.font_size * 13, params.font_size * 13), ImGuiCond_Always);
+      ImGui::SetNextWindowPos(ImVec2(width - params.font_size * 13,
                                     0),
                                     ImGuiCond_Always);
       ImGui::Begin("Logging", &open, ImGuiWindowFlags_NoDecoration);
@@ -1342,24 +1317,37 @@ static void compute_swapchain_display(struct swapchain_data *data)
       ImGui::Text("Elapsed: %isec", int((elapsedLog) / 1000000));
       ImGui::End();
    }
-   if (instance_data->params.enabled[OVERLAY_PARAM_ENABLED_crosshair]){
+   if (params.enabled[OVERLAY_PARAM_ENABLED_crosshair]){
       ImGui::SetNextWindowBgAlpha(0.0);
-      ImGui::SetNextWindowSize(ImVec2(data->width, data->height), ImGuiCond_Always);
+      ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_Always);
       ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
       ImGui::Begin("Logging", &open, ImGuiWindowFlags_NoDecoration);
-      ImVec2 horiz = ImVec2(data->width / 2 - (instance_data->params.crosshair_size / 2), data->height / 2);
-      ImVec2 vert = ImVec2(data->width / 2, data->height / 2 - (instance_data->params.crosshair_size / 2));
+      ImVec2 horiz = ImVec2(width / 2 - (params.crosshair_size / 2), height / 2);
+      ImVec2 vert = ImVec2(width / 2, height / 2 - (params.crosshair_size / 2));
       ImGui::GetWindowDrawList()->AddLine(horiz,
-         ImVec2(horiz.x + instance_data->params.crosshair_size, horiz.y + 0),
-         instance_data->params.crosshair_color, 2.0f);
+         ImVec2(horiz.x + params.crosshair_size, horiz.y + 0),
+         params.crosshair_color, 2.0f);
       ImGui::GetWindowDrawList()->AddLine(vert,
-         ImVec2(vert.x + 0, vert.y + instance_data->params.crosshair_size),
-         instance_data->params.crosshair_color, 2.0f);
+         ImVec2(vert.x + 0, vert.y + params.crosshair_size),
+         params.crosshair_color, 2.0f);
       ImGui::End();
    }
-      ImGui::PopStyleVar(2);
-      ImGui::EndFrame();
-      ImGui::Render();
+}
+
+static void compute_swapchain_display(struct swapchain_data *data)
+{
+   struct device_data *device_data = data->device;
+   struct instance_data *instance_data = device_data->instance;
+
+   ImGui::SetCurrentContext(data->imgui_context);
+   ImGui::NewFrame();
+
+   position_layer(instance_data->params, data->window_size, data->width, data->height);
+   render_imgui(data->sw_stats, instance_data->params, data->window_size, data->width, data->height);
+   ImGui::PopStyleVar(2);
+
+   ImGui::EndFrame();
+   ImGui::Render();
 }
 
 static uint32_t vk_memory_type(struct device_data *data,
@@ -1938,14 +1926,14 @@ static void setup_swapchain_data_pipeline(struct swapchain_data *data)
    // ImGui takes ownership of the data, no need to free it
    if (mangohud_font && file_exists(mangohud_font)) {
       data->font = io.Fonts->AddFontFromFileTTF(mangohud_font, font_size);
-      data->font1 = io.Fonts->AddFontFromFileTTF(mangohud_font, font_size * 0.55f);
+      data->sw_stats.font1 = io.Fonts->AddFontFromFileTTF(mangohud_font, font_size * 0.55f);
    } else {
       ImFontConfig font_cfg = ImFontConfig();
       const char* ttf_compressed_base85 = GetDefaultCompressedFontDataTTFBase85();
       const ImWchar* glyph_ranges = io.Fonts->GetGlyphRangesDefault();
 
       data->font = io.Fonts->AddFontFromMemoryCompressedBase85TTF(ttf_compressed_base85, font_size, &font_cfg, glyph_ranges);
-      data->font1 = io.Fonts->AddFontFromMemoryCompressedBase85TTF(ttf_compressed_base85, font_size * 0.55, &font_cfg, glyph_ranges);
+      data->sw_stats.font1 = io.Fonts->AddFontFromMemoryCompressedBase85TTF(ttf_compressed_base85, font_size * 0.55, &font_cfg, glyph_ranges);
    }
    unsigned char* pixels;
    int width, height;
@@ -2185,7 +2173,7 @@ static struct overlay_draw *before_present(struct swapchain_data *swapchain_data
 
    snapshot_swapchain_frame(swapchain_data);
 
-   if (swapchain_data->n_frames > 0) {
+   if (swapchain_data->sw_stats.n_frames > 0) {
       compute_swapchain_display(swapchain_data);
       draw = render_swapchain_display(swapchain_data, present_queue,
                                       wait_semaphores, n_wait_semaphores,
