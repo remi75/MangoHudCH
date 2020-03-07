@@ -50,11 +50,12 @@
 
 #include "string_utils.h"
 #include "file_utils.h"
-#include "cpu_gpu.h"
+#include "gpu.h"
 #include "logging.h"
 #include "keybinds.h"
 #include "cpu.h"
 #include "loaders/loader_nvml.h"
+#include "memory.h"
 
 bool open = false;
 string gpuString;
@@ -756,6 +757,28 @@ static void process_control_socket(struct instance_data *instance_data)
    }
 }
 
+string exec(string command) {
+   char buffer[128];
+   string result = "";
+
+   // Open pipe to file
+   FILE* pipe = popen(command.c_str(), "r");
+   if (!pipe) {
+      return "popen failed!";
+   }
+
+   // read till end of process:
+   while (!feof(pipe)) {
+
+      // use buffer to read and add to result
+      if (fgets(buffer, 128, pipe) != NULL)
+         result += buffer;
+   }
+
+   pclose(pipe);
+   return result;
+}
+
 void init_gpu_stats(uint32_t& vendorID, overlay_params& params)
 {
    if (!params.enabled[OVERLAY_PARAM_ENABLED_gpu_stats])
@@ -953,7 +976,7 @@ static void snapshot_swapchain_frame(struct swapchain_data *data)
 
             // update variables for logging
             // cpuLoadLog = cpuArray[0].value;
-            gpuLoadLog = gpuLoad;
+            gpuLoadLog = gpu_info.load;
 
             data->frametimeDisplay = data->frametime;
             data->sw_stats.fps = fps;
@@ -1093,20 +1116,20 @@ void render_imgui(swapchain_stats& data, struct overlay_params& params, ImVec2& 
          ImGui::TableNextRow();
          ImGui::TextColored(ImVec4(0.180, 0.592, 0.384, 1.00f), "GPU");
          ImGui::TableNextCell();
-         right_aligned_text(char_width * 4, "%i", gpuLoad);
+         right_aligned_text(char_width * 4, "%i", gpu_info.load);
          ImGui::SameLine(0, 1.0f);
          ImGui::Text("%%");
          // ImGui::SameLine(150);
          // ImGui::Text("%s", "%");
          if (params.enabled[OVERLAY_PARAM_ENABLED_gpu_temp]){
             ImGui::TableNextCell();
-            right_aligned_text(char_width * 4, "%i", gpuTemp);
+            right_aligned_text(char_width * 4, "%i", gpu_info.temp);
             ImGui::SameLine(0, 1.0f);
             ImGui::Text("°C");
          }
          if (params.enabled[OVERLAY_PARAM_ENABLED_gpu_core_clock]){
             ImGui::TableNextCell();
-            right_aligned_text(char_width * 4, "%i", gpuCoreClock);
+            right_aligned_text(char_width * 4, "%i", gpu_info.CoreClock);
             ImGui::SameLine(0, 1.0f);
             ImGui::PushFont(data.font1);
             ImGui::Text("MHz");
@@ -1125,7 +1148,7 @@ void render_imgui(swapchain_stats& data, struct overlay_params& params, ImVec2& 
       
          if (params.enabled[OVERLAY_PARAM_ENABLED_cpu_temp]){
             ImGui::TableNextCell();
-            right_aligned_text(char_width * 4, "%i", cpuTemp);
+            right_aligned_text(char_width * 4, "%i", cpuStats.GetCPUDataTotal().temp);
             ImGui::SameLine(0, 1.0f);
             ImGui::Text("°C");
          }
@@ -1187,14 +1210,14 @@ void render_imgui(swapchain_stats& data, struct overlay_params& params, ImVec2& 
          ImGui::TableNextRow();
          ImGui::TextColored(ImVec4(0.678, 0.392, 0.756, 1.00f), "VRAM");
          ImGui::TableNextCell();
-         right_aligned_text(char_width * 4, "%.2f", gpuMemUsed);
+         right_aligned_text(char_width * 4, "%.2f", gpu_info.memoryUsed);
          ImGui::SameLine(0,1.0f);
          ImGui::PushFont(data.font1);
          ImGui::Text("GB");
          ImGui::PopFont();
          if (params.enabled[OVERLAY_PARAM_ENABLED_gpu_mem_clock]){
             ImGui::TableNextCell();
-            right_aligned_text(char_width * 4, "%i", gpuMemClock);
+            right_aligned_text(char_width * 4, "%i", gpu_info.MemClock);
             ImGui::SameLine(0, 1.0f);
             ImGui::PushFont(data.font1);
             ImGui::Text("MHz");
