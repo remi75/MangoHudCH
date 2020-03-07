@@ -13,11 +13,12 @@
 #include "imgui_impl_opengl3.h"
 #include "font_default.h"
 #include "overlay.h"
-#include "../gpu.h"
-#include "../cpu.h"
-#include "../mesa/util/os_time.h"
-#include "../memory.h"
-#include "../iostats.h"
+#include "gpu.h"
+#include "cpu.h"
+#include "mesa/util/os_time.h"
+#include "memory.h"
+#include "iostats.h"
+#include "mesa/util/macros.h"
 
 #include <chrono>
 #include <iomanip>
@@ -28,7 +29,9 @@ EXPORT_C_(void *) glXGetProcAddress(const unsigned char* procName);
 EXPORT_C_(void *) glXGetProcAddressARB(const unsigned char* procName);
 
 gl_loader gl;
-uint64_t last_fps_update;
+uint64_t last_fps_update = 0;
+uint64_t n_frames_since_update = 0;
+uint64_t last_present_time = 0;
 
 struct state {
     ImGuiContext *imgui_ctx = nullptr;
@@ -74,9 +77,10 @@ void imgui_create(void *ctx)
     //ImGui::StyleColorsClassic();
 
     ImGuiStyle& style = ImGui::GetStyle();
-    style.Colors[ImGuiCol_FrameBg]   = ImVec4(0.0f, 0.0f, 0.0f, 0.50f);
+    //style.Colors[ImGuiCol_FrameBg]   = ImVec4(0.0f, 0.0f, 0.0f, 0.50f);
     style.Colors[ImGuiCol_PlotLines] = ImVec4(0.0f, 1.0f, 0.0f, 1.00f);
-    style.Colors[ImGuiCol_WindowBg]  = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+    style.Colors[ImGuiCol_WindowBg]  = ImVec4(0.06f, 0.06f, 0.06f, 1.0f);
+    style.CellPadding.y = -2;
 
     GLint vp [4]; glGetIntegerv (GL_VIEWPORT, vp);
     printf("viewport %d %d %d %d\n", vp[0], vp[1], vp[2], vp[3]);
@@ -207,31 +211,39 @@ EXPORT_C_(void) glXSwapBuffers(void* dpy, void* drawable) {
     gl.Load();
     uint64_t now = os_time_get(); /* us */
     double elapsed = (double)(now - last_fps_update); /* us */
+    uint32_t f_idx = sw_stats.n_frames % ARRAY_SIZE(sw_stats.frames_stats);
+
     if (elapsed > 500000){
-        uint32_t f_idx = sw_stats.n_frames % (sizeof(sw_stats.frames_stats) / sizeof(sw_stats.frames_stats[0]));
-        sw_stats.fps = 1000000.0f * sw_stats.n_frames / elapsed;
-        memset(&sw_stats.frames_stats[f_idx], 0, sizeof(sw_stats.frames_stats[f_idx]));
-        for (int s = 0; s < OVERLAY_PARAM_ENABLED_MAX; s++) {
-            sw_stats.frames_stats[f_idx].stats[s] = 50;
-        }
+        sw_stats.fps = 1000000.0f * n_frames_since_update / elapsed;
+
         if (params.enabled[OVERLAY_PARAM_ENABLED_gpu_stats]) {
             std::string gpu = (char*)glGetString(GL_RENDERER);
             if (gpu.find("Radeon") != std::string::npos
                 || gpu.find("AMD") != std::string::npos){
                 pthread_create(&gpuThread, NULL, &getAmdGpuUsage, NULL);
-            } else {
+            } else if (gpu.find("Intel") == std::string::npos) {
                 pthread_create(&gpuThread, NULL, &getNvidiaGpuInfo, NULL);
             }
-
         }
+
         cpuStats.UpdateCPUData();
         sw_stats.total_cpu = cpuStats.GetCPUDataTotal().percent;
         pthread_create(&memoryThread, NULL, &update_meminfo, NULL);
         pthread_create(&ioThread, NULL, &getIoStats, &sw_stats.io);
-        sw_stats.n_frames = 0;
         last_fps_update = now;
+        n_frames_since_update = 0;
     }
+
+    //memset(&sw_stats.frames_stats[f_idx], 0, sizeof(sw_stats.frames_stats[f_idx]));
+    if (last_present_time) {
+        sw_stats.frames_stats[f_idx].stats[OVERLAY_PARAM_ENABLED_frame_timing] =
+            now - last_present_time;
+    }
+    last_present_time = now;
+
+    n_frames_since_update++;
     sw_stats.n_frames++;
+
     imgui_render();
     gl.glXSwapBuffers(dpy, drawable);
 }
