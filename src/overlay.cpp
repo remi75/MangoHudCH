@@ -971,7 +971,7 @@ static void snapshot_swapchain_frame(struct swapchain_data *data)
 {
    struct device_data *device_data = data->device;
    struct instance_data *instance_data = device_data->instance;
-   update_hud_info(data->sw_stats, instance_data->params, device_data->properties.deviceID);
+   update_hud_info(data->sw_stats, instance_data->params, device_data->properties.vendorID);
    check_keybinds(instance_data->params);
 
    // not currently used
