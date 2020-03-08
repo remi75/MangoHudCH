@@ -98,7 +98,10 @@ void imgui_create(void *ctx)
     GLint current_texture;
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &current_texture);
 
-    float font_size = 24.f;
+    int font_size = params.font_size;
+    if (!font_size)
+        font_size = 24;
+
     ImFontConfig font_cfg = ImFontConfig();
     const char* ttf_compressed_base85 = GetDefaultCompressedFontDataTTFBase85();
     const ImWchar* glyph_ranges = io.Fonts->GetGlyphRangesDefault();
