@@ -944,6 +944,7 @@ void update_hud_info(struct swapchain_stats& sw_stats, struct overlay_params& pa
             pthread_create(&ioThread, NULL, &getIoStats, &sw_stats.io);
 
             gpuLoadLog = gpu_info.load;
+            cpuLoadLog = sw_stats.total_cpu;
             sw_stats.fps = fps;
 
             std::time_t t = std::time(nullptr);
