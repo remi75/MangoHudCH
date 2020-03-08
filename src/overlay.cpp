@@ -850,6 +850,7 @@ void init_gpu_stats(uint32_t& vendorID, overlay_params& params)
 }
 
 void init_system_info(){
+      putenv("LD_PRELOAD=");
       ram =  exec("cat /proc/meminfo | grep 'MemTotal' | awk '{print $2}'");
       trim(ram);
       cpu =  exec("cat /proc/cpuinfo | grep 'model name' | tail -n1 | sed 's/^.*: //' | sed 's/([^)]*)/()/g' | tr -d '(/)'");
@@ -914,7 +915,7 @@ void check_keybinds(struct overlay_params& params){
    }
 }
 
-void update_hud_info(struct swapchain_stats& sw_stats, struct overlay_params& params, std::string gpu){
+void update_hud_info(struct swapchain_stats& sw_stats, struct overlay_params& params, uint32_t vendorID){
    uint32_t f_idx = sw_stats.n_frames % ARRAY_SIZE(sw_stats.frames_stats);
    uint64_t now = os_time_get(); /* us */
 
@@ -931,12 +932,11 @@ void update_hud_info(struct swapchain_stats& sw_stats, struct overlay_params& pa
             sw_stats.total_cpu = cpuStats.GetCPUDataTotal().percent;
             
             if (params.enabled[OVERLAY_PARAM_ENABLED_gpu_stats]) {
-                  if (gpu.find("Radeon") != std::string::npos
-                     || gpu.find("AMD") != std::string::npos){
+                  if (vendorID == 0x1002)
                      pthread_create(&gpuThread, NULL, &getAmdGpuUsage, NULL);
-                  } else if (gpu.find("Intel") == std::string::npos) {
+
+                  if (vendorID == 0x8086)
                      pthread_create(&gpuThread, NULL, &getNvidiaGpuInfo, NULL);
-                  }
             }
 
             // get ram usage/max
@@ -971,8 +971,7 @@ static void snapshot_swapchain_frame(struct swapchain_data *data)
 {
    struct device_data *device_data = data->device;
    struct instance_data *instance_data = device_data->instance;
-   string deviceName = device_data->properties.deviceName;
-   update_hud_info(data->sw_stats, instance_data->params, deviceName);
+   update_hud_info(data->sw_stats, instance_data->params, device_data->properties.deviceID);
    check_keybinds(instance_data->params);
 
    // not currently used

@@ -28,5 +28,7 @@ struct swapchain_stats {
 
 void position_layer(struct overlay_params& params, ImVec2 window_size, unsigned width, unsigned height);
 void render_imgui(swapchain_stats& data, struct overlay_params& params, ImVec2& window_size, unsigned width, unsigned height);
-void update_hud_info(struct swapchain_stats& sw_stats, struct overlay_params& params, std::string gpu);
+void update_hud_info(struct swapchain_stats& sw_stats, struct overlay_params& params, uint32_t vendorID);
+void init_gpu_stats(uint32_t& vendorID, overlay_params& params);
 void check_keybinds(struct overlay_params& params);
+void init_system_info(void);

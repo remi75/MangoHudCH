@@ -40,6 +40,8 @@ static swapchain_stats sw_stats {};
 static state *current_state;
 static bool inited = false;
 std::unordered_map<void*, state> g_imgui_states;
+uint32_t vendorID;
+std::string deviceName;
 
 void imgui_init()
 {
@@ -48,6 +50,7 @@ void imgui_init()
     inited = true;
     parse_overlay_config(&params, getenv("MANGOHUD_CONFIG"));
     window_size = ImVec2(params.width, params.height);
+    init_system_info();
 }
 
 void imgui_create(void *ctx)
@@ -55,10 +58,16 @@ void imgui_create(void *ctx)
     if (!ctx)
         return;
     imgui_init();
-
     gl3wInit();
     std::cerr << "GL version: " << glGetString(GL_VERSION) << std::endl;
-
+    deviceName = (char*)glGetString(GL_RENDERER);
+    if (deviceName.find("Radeon") != std::string::npos
+    || deviceName.find("AMD") != std::string::npos){
+        vendorID = 0x1002;
+    } else {
+        vendorID = 0x10de;
+    }
+    init_gpu_stats(vendorID, params);
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     auto& state = g_imgui_states[ctx];
@@ -204,9 +213,8 @@ EXPORT_C_(bool) glXMakeCurrent(void* dpy, void* drawable, void* ctx) {
 
 EXPORT_C_(void) glXSwapBuffers(void* dpy, void* drawable) {
     gl.Load();
-    std::string deviceName = (char*)glGetString(GL_RENDERER);
     check_keybinds(params);
-    update_hud_info(sw_stats, params, deviceName);
+    update_hud_info(sw_stats, params, vendorID);
     imgui_render();
     gl.glXSwapBuffers(dpy, drawable);
 }
