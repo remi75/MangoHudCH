@@ -2607,15 +2607,7 @@ static VkResult overlay_CreateInstance(
 
    parse_overlay_config(&instance_data->params, getenv("MANGOHUD_CONFIG"));
    if (instance_data->params.fps_limit > 0)
-      targetFrameTime = int64_t(1000000000.0 / instance_data->params.fps_limit);
-
-   int font_size;
-   instance_data->params.font_size > 0 ? font_size = instance_data->params.font_size : font_size = 24;
-   instance_data->params.font_size > 0 ? font_size = instance_data->params.font_size : instance_data->params.font_size = 24;
-
-   hudSpacing = font_size / 2;
-   hudFirstRow = font_size * 4.2;
-   hudSecondRow = font_size * 7.5;
+      fps_limit_stats.targetFrameTime = int64_t(1000000000.0 / instance_data->params.fps_limit);
 
    // Adjust height for DXVK/VKD3D version number
    if (engineName == "DXVK" || engineName == "VKD3D"){
