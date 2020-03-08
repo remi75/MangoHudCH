@@ -69,6 +69,7 @@
 #include <stdint.h>     // intptr_t
 
 #include <GL/gl3w.h>
+#define GL_CLIP_ORIGIN 0x935C
 
 // Desktop GL 3.2+ has glDrawElementsBaseVertex() which GL ES and WebGL don't have.
 #if defined(IMGUI_IMPL_OPENGL_ES2) || defined(IMGUI_IMPL_OPENGL_ES3) || !defined(GL_VERSION_3_2)
@@ -478,8 +479,8 @@ bool    ImGui_ImplOpenGL3_CreateDeviceObjects()
         "{\n"
         "    Frag_UV = UV;\n"
         "    Frag_Color = Color;\n"
-        //"    gl_Position = ProjMtx * vec4(Position.xy,0,1);\n"
-        "    gl_Position = ProjMtx * vec4(Position.xy,0,1) * vec4(1.0, -1.0, 1, 1);\n"
+        "    gl_Position = ProjMtx * vec4(Position.xy,0,1);\n"
+        //"    gl_Position = ProjMtx * vec4(Position.xy,0,1) * vec4(1.0, -1.0, 1, 1);\n"
         "}\n";
 
     const GLchar* fragment_shader_glsl_120 =
