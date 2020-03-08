@@ -63,7 +63,7 @@ float offset_x, offset_y, hudSpacing;
 int hudFirstRow, hudSecondRow;
 string engineName, engineVersion;
 struct amdGpu amdgpu;
-int64_t frameStart, frameEnd, targetFrameTime = 0, frameOverhead = 0, sleepTime = 0;
+struct fps_limit fps_limit_stats;
 
 /* Mapped from VkInstace/VkPhysicalDevice */
 struct instance_data {
@@ -2168,14 +2168,14 @@ static void overlay_DestroySwapchainKHR(
    destroy_swapchain_data(swapchain_data);
 }
 
-void FpsLimiter(){
-   sleepTime = targetFrameTime - (frameStart - frameEnd);
-   if ( sleepTime > frameOverhead ) {
-      int64_t adjustedSleep = sleepTime - frameOverhead;
+void FpsLimiter(struct fps_limit stats){
+   stats.sleepTime = stats.targetFrameTime - (stats.frameStart - stats.frameEnd);
+   if (stats.sleepTime > stats.frameOverhead) {
+      int64_t adjustedSleep = stats.sleepTime - stats.frameOverhead;
       this_thread::sleep_for(chrono::nanoseconds(adjustedSleep));
-      frameOverhead = ((os_time_get_nano() - frameStart) - adjustedSleep);
-      if (frameOverhead > targetFrameTime)
-         frameOverhead = 0;
+      stats.frameOverhead = ((os_time_get_nano() - stats.frameStart) - adjustedSleep);
+      if (stats.frameOverhead > stats.targetFrameTime)
+         stats.frameOverhead = 0;
    }
 }
 
@@ -2264,10 +2264,10 @@ static VkResult overlay_QueuePresentKHR(
          result = chain_result;
    }
 
-   if (targetFrameTime > 0){
-      frameStart = os_time_get_nano();
-      FpsLimiter();
-      frameEnd = os_time_get_nano();
+   if (fps_limit_stats.targetFrameTime > 0){
+      fps_limit_stats.frameStart = os_time_get_nano();
+      FpsLimiter(fps_limit_stats);
+      fps_limit_stats.frameEnd = os_time_get_nano();
    }
    
    return result;

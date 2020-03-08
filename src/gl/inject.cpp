@@ -14,6 +14,7 @@
 #include "font_default.h"
 #include "overlay.h"
 #include "mesa/util/macros.h"
+#include "mesa/util/os_time.h"
 
 #include <chrono>
 #include <iomanip>
@@ -37,7 +38,8 @@ struct state {
 static ImVec2 window_size;
 static overlay_params params {};
 static swapchain_stats sw_stats {};
-static state *current_state;
+static fps_limit fps_limit_stats {};
+static state *current_state; 
 static bool inited = false;
 std::unordered_map<void*, state> g_imgui_states;
 uint32_t vendorID;
@@ -51,6 +53,8 @@ void imgui_init()
     parse_overlay_config(&params, getenv("MANGOHUD_CONFIG"));
     window_size = ImVec2(params.width, params.height);
     init_system_info();
+    if (params.fps_limit > 0)
+      fps_limit_stats.targetFrameTime = int64_t(1000000000.0 / params.fps_limit);
 }
 
 void imgui_create(void *ctx)
@@ -216,6 +220,11 @@ EXPORT_C_(bool) glXMakeCurrent(void* dpy, void* drawable, void* ctx) {
 
 EXPORT_C_(void) glXSwapBuffers(void* dpy, void* drawable) {
     gl.Load();
+    if (fps_limit_stats.targetFrameTime > 0){
+        fps_limit_stats.frameStart = os_time_get_nano();
+        FpsLimiter(fps_limit_stats);
+        fps_limit_stats.frameEnd = os_time_get_nano();
+    }
     check_keybinds(params);
     update_hud_info(sw_stats, params, vendorID);
     imgui_render();
