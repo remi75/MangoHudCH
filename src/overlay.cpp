@@ -487,8 +487,6 @@ static struct swapchain_data *new_swapchain_data(VkSwapchainKHR swapchain,
    struct swapchain_data *data = new swapchain_data();
    data->device = device_data;
    data->swapchain = swapchain;
-   if (instance_data->params.font_size > 0 && instance_data->params.width == 280)
-      instance_data->params.width = hudFirstRow + hudSecondRow;
    data->window_size = ImVec2(instance_data->params.width, instance_data->params.height);
    map_object(HKEY(data->swapchain), data);
    return data;
