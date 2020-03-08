@@ -935,7 +935,7 @@ void update_hud_info(struct swapchain_stats& sw_stats, struct overlay_params& pa
                   if (vendorID == 0x1002)
                      pthread_create(&gpuThread, NULL, &getAmdGpuUsage, NULL);
 
-                  if (vendorID == 0x8086)
+                  if (vendorID == 0x10de)
                      pthread_create(&gpuThread, NULL, &getNvidiaGpuInfo, NULL);
             }
 
