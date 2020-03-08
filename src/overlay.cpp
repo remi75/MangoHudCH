@@ -927,16 +927,16 @@ void update_hud_info(struct swapchain_stats& sw_stats, struct overlay_params& pa
             now - sw_stats.last_present_time;
    }
       if (sw_stats.last_fps_update) {
-      if (elapsed >= params.fps_sampling_period) {
+         if (elapsed >= params.fps_sampling_period) {
             cpuStats.UpdateCPUData();
             sw_stats.total_cpu = cpuStats.GetCPUDataTotal().percent;
             
             if (params.enabled[OVERLAY_PARAM_ENABLED_gpu_stats]) {
-                  if (vendorID == 0x1002)
-                     pthread_create(&gpuThread, NULL, &getAmdGpuUsage, NULL);
+               if (vendorID == 0x1002)
+                  pthread_create(&gpuThread, NULL, &getAmdGpuUsage, NULL);
 
-                  if (vendorID == 0x10de)
-                     pthread_create(&gpuThread, NULL, &getNvidiaGpuInfo, NULL);
+               if (vendorID == 0x10de)
+                  pthread_create(&gpuThread, NULL, &getNvidiaGpuInfo, NULL);
             }
 
             // get ram usage/max
@@ -951,10 +951,10 @@ void update_hud_info(struct swapchain_stats& sw_stats, struct overlay_params& pa
             time << std::put_time(std::localtime(&t), params.time_format.c_str());
             sw_stats.time = time.str();
 
-         sw_stats.n_frames_since_update = 0;
-         sw_stats.last_fps_update = now;
+            sw_stats.n_frames_since_update = 0;
+            sw_stats.last_fps_update = now;
 
-      }
+         }
    } else {
       sw_stats.last_fps_update = now;
    }
