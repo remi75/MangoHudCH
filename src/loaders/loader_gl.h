@@ -22,6 +22,8 @@ class gl_loader {
   decltype(&::glXSwapIntervalMESA) glXSwapIntervalMESA;
   decltype(&::glXMakeCurrent) glXMakeCurrent;
 
+  decltype(&::glClipControl) glClipControl;
+
   decltype(&::eglSwapBuffers) eglSwapBuffers;
 
  private:
