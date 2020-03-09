@@ -848,7 +848,7 @@ void init_gpu_stats(uint32_t& vendorID, overlay_params& params)
 }
 
 void init_system_info(){
-      putenv("LD_PRELOAD=");
+      unsetenv("LD_PRELOAD");
       ram =  exec("cat /proc/meminfo | grep 'MemTotal' | awk '{print $2}'");
       trim(ram);
       cpu =  exec("cat /proc/cpuinfo | grep 'model name' | tail -n1 | sed 's/^.*: //' | sed 's/([^)]*)/()/g' | tr -d '(/)'");
