@@ -90,3 +90,10 @@ install_data(
   files('mangohud.json'),
   install_dir : join_paths(get_option('datadir'), 'vulkan', 'implicit_layer.d'),
 )
+
+install_data(
+  files('../bin/run-mangohud-gl-pkg.sh'),
+  install_dir : get_option('bindir'),
+  install_mode: 'rwxr-xr-x',
+  rename : ['run-mangohud-gl.sh']
+)
