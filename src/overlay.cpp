@@ -2167,7 +2167,7 @@ static void overlay_DestroySwapchainKHR(
    destroy_swapchain_data(swapchain_data);
 }
 
-void FpsLimiter(struct fps_limit stats){
+void FpsLimiter(struct fps_limit& stats){
    stats.sleepTime = stats.targetFrameTime - (stats.frameStart - stats.frameEnd);
    if (stats.sleepTime > stats.frameOverhead) {
       int64_t adjustedSleep = stats.sleepTime - stats.frameOverhead;

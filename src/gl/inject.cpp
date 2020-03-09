@@ -220,15 +220,15 @@ EXPORT_C_(bool) glXMakeCurrent(void* dpy, void* drawable, void* ctx) {
 
 EXPORT_C_(void) glXSwapBuffers(void* dpy, void* drawable) {
     gl.Load();
+    check_keybinds(params);
+    update_hud_info(sw_stats, params, vendorID);
+    imgui_render();
+    gl.glXSwapBuffers(dpy, drawable);
     if (fps_limit_stats.targetFrameTime > 0){
         fps_limit_stats.frameStart = os_time_get_nano();
         FpsLimiter(fps_limit_stats);
         fps_limit_stats.frameEnd = os_time_get_nano();
     }
-    check_keybinds(params);
-    update_hud_info(sw_stats, params, vendorID);
-    imgui_render();
-    gl.glXSwapBuffers(dpy, drawable);
 }
 
 struct func_ptr {
