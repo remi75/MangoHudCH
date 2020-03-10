@@ -25,9 +25,6 @@ EXPORT_C_(void *) glXGetProcAddress(const unsigned char* procName);
 EXPORT_C_(void *) glXGetProcAddressARB(const unsigned char* procName);
 
 gl_loader gl;
-uint64_t last_fps_update = 0;
-uint64_t n_frames_since_update = 0;
-uint64_t last_present_time = 0;
 
 struct state {
     ImGuiContext *imgui_ctx = nullptr;
