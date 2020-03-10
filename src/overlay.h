@@ -41,3 +41,4 @@ void init_gpu_stats(uint32_t& vendorID, overlay_params& params);
 void check_keybinds(struct overlay_params& params);
 void init_system_info(void);
 void FpsLimiter(struct fps_limit& stats);
+void imgui_custom_style(void);

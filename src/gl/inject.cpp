@@ -80,13 +80,8 @@ void imgui_create(void *ctx)
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
     //ImGui::StyleColorsClassic();
-
-    ImGuiStyle& style = ImGui::GetStyle();
-    //style.Colors[ImGuiCol_FrameBg]   = ImVec4(0.0f, 0.0f, 0.0f, 0.50f);
-    style.Colors[ImGuiCol_PlotLines] = ImVec4(0.0f, 1.0f, 0.0f, 1.00f);
-    style.Colors[ImGuiCol_WindowBg]  = ImVec4(0.06f, 0.06f, 0.06f, 1.0f);
-    style.CellPadding.y = -2;
-
+    imgui_custom_style();
+    
     GLint vp [4]; glGetIntegerv (GL_VIEWPORT, vp);
     printf("viewport %d %d %d %d\n", vp[0], vp[1], vp[2], vp[3]);
     ImGui::GetIO().IniFilename = NULL;

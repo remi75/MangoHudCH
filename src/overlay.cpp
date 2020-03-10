@@ -1944,6 +1944,12 @@ static void setup_swapchain_data_pipeline(struct swapchain_data *data)
    write_desc[0].pImageInfo = desc_image;
    device_data->vtable.UpdateDescriptorSets(device_data->device, 1, write_desc, 0, NULL);
 }
+void imgui_custom_style(){
+   ImGuiStyle& style = ImGui::GetStyle();
+   style.Colors[ImGuiCol_PlotLines] = ImVec4(0.0f, 1.0f, 0.0f, 1.00f);
+   style.Colors[ImGuiCol_WindowBg]  = ImVec4(0.06f, 0.06f, 0.06f, 1.0f);
+   style.CellPadding.y = -2;
+}
 
 static void setup_swapchain_data(struct swapchain_data *data,
                                  const VkSwapchainCreateInfoKHR *pCreateInfo)
@@ -1957,12 +1963,7 @@ static void setup_swapchain_data(struct swapchain_data *data,
 
    ImGui::GetIO().IniFilename = NULL;
    ImGui::GetIO().DisplaySize = ImVec2((float)data->width, (float)data->height);
-
-   ImGuiStyle& style = ImGui::GetStyle();
-   //style.Colors[ImGuiCol_FrameBg]   = ImVec4(0.0f, 0.0f, 0.0f, 0.00f); // Setting temporarily with PushStyleColor()
-   style.Colors[ImGuiCol_PlotLines] = ImVec4(0.0f, 1.0f, 0.0f, 1.00f);
-   style.Colors[ImGuiCol_WindowBg]  = ImVec4(0.06f, 0.06f, 0.06f, 1.0f);
-   style.CellPadding.y = -2;
+   imgui_custom_style();
 
    struct device_data *device_data = data->device;
 
