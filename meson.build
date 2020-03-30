@@ -30,6 +30,56 @@ cpp = meson.get_compiler('cpp')
 prog_python = import('python').find_installation('python3')
 null_dep = dependency('', required : false)
 
+imgui_args = []
+imgui_rename_macros = [
+  #'GImGui',
+  'ImGui',
+  'ImGuiColorMod',
+  'ImGuiColumnData',
+  'ImGuiColumns',
+  'ImGuiContext',
+  'ImGuiGroupData',
+  'ImGuiInputTextCallbackData',
+  'ImGuiInputTextState',
+  'ImGuiIO',
+  'ImGuiItemHoveredDataBackup',
+  'ImGuiListClipper',
+  'ImGuiMenuColumns',
+  'ImGuiNavMoveResult',
+  'ImGuiNextItemData',
+  'ImGuiNextWindowData',
+  'ImGuiPayload',
+  'ImGuiPlotArrayGetterData',
+  'ImGuiPopupData',
+  'ImGuiPtrOrIndex',
+  'ImGuiSettingsHandler',
+  'ImGuiShrinkWidthItem',
+  'ImGuiSizeCallbackData',
+  'ImGuiStorage',
+  'ImGuiStoragePair',
+  'ImGuiStyle',
+  'ImGuiStyleMod',
+  'ImGuiStyleVarInfo',
+  'ImGuiTabBar',
+  'ImGuiTabItem',
+  'ImGuiTable',
+  'ImGuiTableColumn',
+  'ImGuiTableColumnSettings',
+  'ImGuiTableSettings',
+  'ImGuiTableSortSpecs',
+  'ImGuiTableSortSpecsColumn',
+  'ImGuiTextBuffer',
+  'ImGuiTextFilter',
+  'ImGuiTextRange',
+  'ImGuiWindow',
+  'ImGuiWindowSettings',
+  'ImGuiWindowTempData',
+]
+
+foreach m : imgui_rename_macros
+  imgui_args += '-D' + m + '=MangoHud_' + m
+endforeach
+
 pre_args = [
   '-D__STDC_CONSTANT_MACROS',
   '-D__STDC_FORMAT_MACROS',
