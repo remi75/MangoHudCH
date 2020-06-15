@@ -158,8 +158,3 @@ All vulkan vsync options might not be supported on your device, you can check wh
 ## MangoHud FPS logging
 
 When you toggle logging (using the keybind `Shift_L+F2`), a file is created with your chosen name (using `output_file`) plus a date & timestamp.
-
-#### Multiple log files
-
-It's possible to upload multiple files when using [Flightlessmango.com](https://flightlessmango.com/games/user_benchmarks). You can rename them to your preferred names and upload them in a batch.
-These filenames will be used as the legend in the graph.
