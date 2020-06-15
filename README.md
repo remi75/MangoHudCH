@@ -1,6 +1,6 @@
 # MangoHud
 
-A Vulkan and OpenGL overlay for monitoring FPS, temperatures, CPU/GPU load and more.
+A Vulkan and OpenGL overlay for monitoring FPS, temperatures, CPU/GPU load and CROSS-HAIR
 
 #### Example:
 ![](assets/overlay_example.gif)
@@ -12,8 +12,8 @@ A Vulkan and OpenGL overlay for monitoring FPS, temperatures, CPU/GPU load and m
 If you wish to compile MangoHud to keep up to date with any changes - first clone this repository and cd into it:
 
 ```
-git clone --recurse-submodules https://github.com/flightlessmango/MangoHud.git
-cd MangoHud
+git clone --recurse-submodules https://github.com/remi75/MangoHudCH.git
+cd MangoHudCH
 ```
 
 To build it, execute:
@@ -41,37 +41,6 @@ You can then subsequently uninstall MangoHud via the following command
 
 ```
 ./build.sh uninstall
-```
-
-### Pre-packaged binaries
-
-#### GitHub releases
-
-If you do not wish to compile anything, simply download the file under [Releases](https://github.com/flightlessmango/MangoHud/releases), extract it, and run `./mangohud-setup.sh install` from within the extracted folder.
-
-#### Arch-based distributions
-
-If you are using an Arch-based distribution, install [`mangohud`](https://aur.archlinux.org/packages/mangohud/) and [`lib32-mangohud`](https://aur.archlinux.org/packages/lib32-mangohud/) with your favourite AUR helper. [`mangohud-git`](https://aur.archlinux.org/packages/mangohud-git/) and [`lib32-mangohud-git`](https://aur.archlinux.org/packages/lib32-mangohud-git/) are also available on the AUR if you want the up-to-date version of MangoHud.
-
-#### Fedora
-
-If you are using Fedora, to install the [MangoHud](https://src.fedoraproject.org/rpms/mangohud) package, execute:
-
-```
-sudo dnf install mangohud
-```
-
-#### Flatpak
-
-If you are using Flatpaks, you will have to add the [Flathub repository](https://flatpak.org/setup/) for your specific distribution, and then, to install it, execute:
-
-##### For Steam flatpak
-```
-flatpak install com.valvesoftware.Steam.Utility.MangoHud
-```
-To enable MangoHud for all Steam games:
-```
-flatpak override --user --env=MANGOHUD=1 com.valvesoftware.Steam
 ```
 
 # Normal usage
@@ -190,14 +159,7 @@ All vulkan vsync options might not be supported on your device, you can check wh
 
 When you toggle logging (using the keybind `Shift_L+F2`), a file is created with your chosen name (using `output_file`) plus a date & timestamp.
 
-This file can be uploaded to [Flightlessmango.com](https://flightlessmango.com/games/user_benchmarks) to create graphs automatically.
-you can share the created page with others, just link it.
-
 #### Multiple log files
 
 It's possible to upload multiple files when using [Flightlessmango.com](https://flightlessmango.com/games/user_benchmarks). You can rename them to your preferred names and upload them in a batch.
 These filenames will be used as the legend in the graph.
-
-#### Log uploading walkthrough
-
-![](assets/log_upload_example.gif)
